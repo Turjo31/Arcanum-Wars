@@ -1,6 +1,7 @@
 import pygame, sys, subprocess
 from battle_ui import run
 from overworld import adventure
+from select_ui import select_match
 
 ITEMS = ["1   Adventure Mode", "2   AI Battle Mode", "3   Tournament Mode", "4   Quit"]
 
@@ -15,7 +16,9 @@ def main():
             if e.type == pygame.QUIT: pygame.quit(); sys.exit()
             if e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_1: adventure()
-                elif e.key == pygame.K_2: run()
+                elif e.key == pygame.K_2:
+                    res = select_match()
+                    if res: run(res[1][0], res[1][1], res[0])
                 elif e.key == pygame.K_3: subprocess.run([sys.executable, "tournament.py"])
                 elif e.key == pygame.K_4: pygame.quit(); sys.exit()
                 if e.key in (pygame.K_1, pygame.K_2, pygame.K_3): screen = pygame.display.set_mode(size)

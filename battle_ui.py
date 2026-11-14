@@ -1,11 +1,10 @@
 import pygame, sys, math, random
-from battle import apply, winner, best, mult
+from battle import apply, winner, best, mult, actions
 from mcts import mcts
-from tournament import START
+from teams import new_state, nm
 
 COL = {"Fire": (230, 80, 40), "Water": (60, 140, 255), "Earth": (140, 100, 50), "Lightning": (240, 210, 50)}
-NAME = {"Fire": "Fire Knight", "Water": "Water Mage", "Earth": "Earth Golem", "Lightning": "Storm Rogue"}
-AI = {"AlphaBeta": lambda s: best(s, 6, True), "MCTS": lambda s: mcts(s, 200)}
+AI = {"AlphaBeta": lambda s: best(s, 6, True), "MCTS": lambda s: mcts(s, 200), "Random": lambda s: random.choice(actions(s))}
 SKIN, DARK, STEEL = (242, 201, 160), (58, 53, 80), (217, 221, 232)
 
 def sprite(scr, el, cx, by, s, flip):
@@ -37,26 +36,26 @@ def panel(scr, fonts, s, disp, maxhp, side, label, x, y, i):
     pygame.draw.rect(scr, (20, 18, 31), (x, y, 310, 120), border_radius=14)
     if turn == side: pygame.draw.rect(scr, (242, 184, 75), (x, y, 310, 120), 3, border_radius=14)
     scr.blit(f2.render(f"Team {side + 1} · {label}", True, (169, 165, 184)), (x + 16, y + 10))
-    scr.blit(f1.render(NAME[el], True, (244, 239, 230)), (x + 16, y + 32))
+    scr.blit(f1.render(nm(teams[side][i]), True, (244, 239, 230)), (x + 16, y + 32))
     pygame.draw.circle(scr, COL[el], (x + 280, y + 42), 12)
     frac = max(0, disp[side][i] / maxhp[side][i])
     pygame.draw.rect(scr, (58, 53, 80), (x + 16, y + 62, 278, 14), border_radius=7)
     if frac > 0: pygame.draw.rect(scr, bar_color(frac), (x + 16, y + 62, 278 * frac, 14), border_radius=7)
     scr.blit(f2.render(f"HP {max(0, round(disp[side][i]))}/{maxhp[side][i]}  ATK {atk}  DEF {df}", True, (244, 239, 230)), (x + 16, y + 82))
-    b = 1 - i; bh, _, _, bel = teams[side][b]
-    scr.blit(f2.render(f"Bench: {NAME[bel]} {bh}/{maxhp[side][b]}", True, (169, 165, 184)), (x + 16, y + 100))
+    b = 1 - i
+    scr.blit(f2.render(f"Bench: {nm(teams[side][b])} {teams[side][b][0]}/{maxhp[side][b]}", True, (169, 165, 184)), (x + 16, y + 100))
 
-def run(n1="AlphaBeta", n2="MCTS"):
+def run(n1="AlphaBeta", n2="MCTS", state=None):
     pygame.init()
     scr = pygame.display.set_mode((960, 540))
     f1, f2, f3, f4 = (pygame.font.SysFont(None, n) for n in (30, 22, 56, 40))
     clock = pygame.time.Clock()
-    names = (n1, n2)
-    s = START
-    maxhp = [[f[0] for f in t] for t in START[0]]
-    disp = [[float(f[0]) for f in t] for t in START[0]]
+    names = (n1, n2) if state or random.random() < 0.5 else (n2, n1)
+    s = new_state()
+    maxhp = [[f[0] for f in t] for t in s[0]]
+    disp = [[float(f[0]) for f in t] for t in s[0]]
     vis = [{"idx": 0, "st": "idle", "t0": 0, "to": 0, "kind": ""} for _ in range(2)]
-    log, floats = ["Battle start!"], []
+    log, floats = [f"Battle start! Team {s[2] + 1} moves first."], []
     phase, pt, pending, applied, hit_t, hit_side, turns = "wait", 0, None, False, -9999, 0, 0
     while True:
         for e in pygame.event.get():
@@ -77,12 +76,12 @@ def run(n1="AlphaBeta", n2="MCTS"):
                         ai = old[1][o]; dmg = old[0][o][ai][0] - new[0][o][ai][0]
                         m = mult(old[0][t][old[1][t]][3], old[0][o][ai][3])
                         tag = " Super effective!" if m > 1 else " Not very effective." if m < 1 else ""
-                        log.append(f"Team {t + 1}'s {NAME[old[0][t][old[1][t]][3]]} attacks: -{dmg}.{tag}")
-                        if new[0][o][ai][0] == 0: log.append(f"{NAME[old[0][o][ai][3]]} fainted!")
+                        log.append(f"Team {t + 1}'s {nm(old[0][t][old[1][t]])} attacks: -{dmg}.{tag}")
+                        if new[0][o][ai][0] == 0: log.append(f"{nm(old[0][o][ai])} fainted!")
                         floats.append([250 if o == 0 else 700, 290 if o == 0 else 205, f"-{dmg}", (242, 184, 75) if m > 1 else (255, 255, 255), now])
                         hit_t, hit_side = now, o
                     else:
-                        log.append(f"Team {t + 1} switches to {NAME[new[0][t][new[1][t]][3]]}.")
+                        log.append(f"Team {t + 1} switches to {nm(new[0][t][new[1][t]])}.")
                     for side in (0, 1):
                         oi, ni = old[1][side], new[1][side]
                         fainted = new[0][side][oi][0] == 0 and old[0][side][oi][0] > 0
@@ -136,7 +135,8 @@ def run(n1="AlphaBeta", n2="MCTS"):
         for i, line in enumerate(log[-3:]): scr.blit(f1.render(line, True, (244, 239, 230) if i == len(log[-3:]) - 1 else (169, 165, 184)), (44, 444 + i * 26))
         if w is not None and settled:
             pygame.draw.rect(scr, (20, 18, 31), (0, 190, 960, 100))
-            scr.blit(f3.render(f"Team {w + 1} wins!", True, (242, 184, 75)), (480 - 130, 205))
+            t = f3.render(f"Team {w + 1} ({names[w]}) wins!", True, (242, 184, 75))
+            scr.blit(t, (480 - t.get_width() // 2, 205))
             scr.blit(f2.render("Press ESC to return", True, (169, 165, 184)), (480 - 80, 262))
         pygame.display.flip()
         clock.tick(60)

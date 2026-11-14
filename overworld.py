@@ -1,5 +1,6 @@
 import pygame, heapq, sys, random
 from battle_ui import run
+from select_ui import select_match
 
 T, VW, VH = 40, 960, 520
 BLOCK = set("TR~MOCXWHN")
@@ -174,7 +175,9 @@ def adventure():
                         fade(screen); key = to; m = maps[key]; player, npc, chasing = list(sp), m["npc"], False; break
                 else:
                     if m["g"][n[1]][n[0]] == "E":
-                        run("AlphaBeta", "MCTS"); screen = pygame.display.set_mode((VW, VH)); player = [11, 10]
+                        res = select_match()
+                        if res: run(res[1][0], res[1][1], res[0])
+                        screen = pygame.display.set_mode((VW, VH)); player = [11, 10]
             t_move = now
         if npc and now - t_npc > 280:
             path = astar(npc, tuple(player), m)
