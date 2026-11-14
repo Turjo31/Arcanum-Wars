@@ -6,16 +6,20 @@ from teams import new_state, nm
 COL = {"Fire": (230, 80, 40), "Water": (60, 140, 255), "Earth": (140, 100, 50), "Lightning": (240, 210, 50)}
 SKIN, DARK, STEEL = (242, 201, 160), (58, 53, 80), (217, 221, 232)
 WOOD, GOLD = (110, 80, 50), (242, 184, 75)
-LABEL = {"AlphaBeta": "Alpha-Beta", "MCTS": "MCTS", "Random": "Random"}
+def label(a):
+    k, _, l = a.partition(":")
+    return {"AlphaBeta": f"Alpha-Beta d{l or 6}", "MCTS": f"MCTS {l or 200}", "Random": "Random"}[k]
 ACT = {"A": "Attack", "S": "Switch"}
 
 def think(name, s):
-    if name == "AlphaBeta":
-        a, sc, nodes, pruned = analyze(s)
+    kind, _, lvl = name.partition(":")
+    if kind == "AlphaBeta":
+        a, sc, nodes, pruned = analyze(s, int(lvl or 6))
         return a, {"kind": "ab", "scores": sc, "nodes": nodes, "pruned": pruned}
-    if name == "MCTS":
-        a, st = mcts_info(s, 200)
-        return a, {"kind": "mcts", "stats": st}
+    if kind == "MCTS":
+        iters = int(lvl or 200)
+        a, st = mcts_info(s, iters)
+        return a, {"kind": "mcts", "stats": st, "iters": iters}
     return random.choice(actions(s)), {"kind": "rand"}
 
 def think_panel(scr, f2, th):
@@ -24,7 +28,7 @@ def think_panel(scr, f2, th):
     if not th:
         scr.blit(f2.render("AI thinking appears here", True, (169, 165, 184)), (r.x + 16, r.y + 34)); return
     side, name, info, chosen = th
-    scr.blit(f2.render(f"Team {side + 1} · {LABEL[name]} thinking", True, (242, 184, 75)), (r.x + 14, r.y + 6))
+    scr.blit(f2.render(f"Team {side + 1} · {label(name)} thinking", True, (242, 184, 75)), (r.x + 14, r.y + 6))
     if info["kind"] == "rand":
         scr.blit(f2.render("Picks any legal action at random", True, (244, 239, 230)), (r.x + 14, r.y + 40)); return
     vals = info["scores"] if info["kind"] == "ab" else {a: v[0] for a, v in info["stats"].items()}
@@ -37,7 +41,7 @@ def think_panel(scr, f2, th):
         pygame.draw.rect(scr, col, (r.x + 80, y + 3, max(6, 130 * frac), 12), border_radius=6)
         txt = f"{vals[a]:+d}" if info["kind"] == "ab" else f"{vals[a]} ({100 * vals[a] // tot}%)"
         scr.blit(f2.render(ACT[a], True, col), (r.x + 14, y)); scr.blit(f2.render(txt, True, col), (r.x + 218, y))
-    foot = f"{info['nodes']} nodes · {info['pruned']} pruned" if info["kind"] == "ab" else "200 simulations"
+    foot = f"{info['nodes']} nodes · {info['pruned']} pruned" if info["kind"] == "ab" else f"{info['iters']} simulations"
     scr.blit(f2.render(foot, True, (244, 239, 230)), (r.x + 14, r.y + 68))
 
 def sprite(scr, name, el, cx, by, s, flip):
@@ -193,14 +197,14 @@ def run(n1="AlphaBeta", n2="MCTS", state=None):
             age = now - f[4]
             if age > 900: floats.remove(f); continue
             scr.blit(f4.render(f[2], True, f[3]), (f[0] - 30, f[1] - age / 10))
-        panel(scr, (f1, f2), s, disp, maxhp, 0, LABEL[names[0]], 24, 24, vis[0]["idx"])
-        panel(scr, (f1, f2), s, disp, maxhp, 1, LABEL[names[1]], 626, 24, vis[1]["idx"])
+        panel(scr, (f1, f2), s, disp, maxhp, 0, label(names[0]), 24, 24, vis[0]["idx"])
+        panel(scr, (f1, f2), s, disp, maxhp, 1, label(names[1]), 626, 24, vis[1]["idx"])
         pygame.draw.rect(scr, (20, 18, 31), (24, 430, 560, 90), border_radius=14)
         for i, line in enumerate(log[-3:]): scr.blit(f2.render(line, True, (244, 239, 230) if i == len(log[-3:]) - 1 else (169, 165, 184)), (40, 442 + i * 26))
         think_panel(scr, f2, thought)
         if w is not None and settled:
             pygame.draw.rect(scr, (20, 18, 31), (0, 190, 960, 100))
-            t = f3.render(f"Team {w + 1} ({LABEL[names[w]]}) wins!", True, (242, 184, 75))
+            t = f3.render(f"Team {w + 1} ({label(names[w])}) wins!", True, (242, 184, 75))
             scr.blit(t, (480 - t.get_width() // 2, 205))
             scr.blit(f2.render("Press ESC to return", True, (169, 165, 184)), (480 - 80, 262))
         pygame.display.flip()

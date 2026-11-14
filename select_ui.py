@@ -2,8 +2,10 @@ import pygame, sys, random
 from teams import POOL, fighter, make_state
 
 COL = {"Fire": (230, 80, 40), "Water": (60, 140, 255), "Earth": (140, 100, 50), "Lightning": (240, 210, 50)}
-AGENTS = ["AlphaBeta", "MCTS", "Random"]
-LABEL = {"AlphaBeta": "Alpha-Beta", "MCTS": "MCTS", "Random": "Random"}
+AGENTS = ["AlphaBeta:2", "AlphaBeta:4", "AlphaBeta:6", "MCTS:50", "MCTS:200", "MCTS:1000", "Random"]
+def label(a):
+    k, _, l = a.partition(":")
+    return {"AlphaBeta": f"Alpha-Beta d{l}", "MCTS": f"MCTS {l}", "Random": "Random"}[k]
 FIRST = ["Random", "Team 1", "Team 2"]
 P = {p[0]: p for p in POOL}
 WHITE, MUTED, GOLD, TEAL, PANEL = (244, 239, 230), (169, 165, 184), (242, 184, 75), (94, 194, 183), (32, 29, 48)
@@ -13,7 +15,7 @@ def select_match():
     scr = pygame.display.set_mode((960, 540))
     ft, f1, f2 = (pygame.font.SysFont(None, n) for n in (46, 28, 22))
     clock = pygame.time.Clock()
-    teams, agents, first, active = [[], []], [0, 1], 0, 0
+    teams, agents, first, active = [[], []], [2, 4], 0, 0
     panel = lambda s: pygame.Rect(24 + s * 492, 60, 420, 150)
     abtn = lambda s: pygame.Rect(24 + s * 492 + 250, 68, 154, 36)
     slot = lambda s, k: pygame.Rect(24 + s * 492 + 16 + k * 198, 114, 190, 80)
@@ -36,7 +38,7 @@ def select_match():
                 pos = e.pos
                 hit = False
                 for s in (0, 1):
-                    if abtn(s).collidepoint(pos): agents[s] = (agents[s] + 1) % 3; hit = True
+                    if abtn(s).collidepoint(pos): agents[s] = (agents[s] + 1) % len(AGENTS); hit = True
                     for k in (0, 1):
                         if slot(s, k).collidepoint(pos):
                             if k < len(teams[s]): teams[s].pop(k)
@@ -63,7 +65,7 @@ def select_match():
             pygame.draw.rect(scr, (20, 18, 31), r, border_radius=14)
             pygame.draw.rect(scr, GOLD if active == s else (58, 53, 80), r, 3, border_radius=14)
             scr.blit(f1.render(f"Team {s + 1}", True, WHITE), (r.x + 16, r.y + 14))
-            button(abtn(s), f"Agent: {LABEL[AGENTS[agents[s]]]}")
+            button(abtn(s), label(AGENTS[agents[s]]))
             for k in (0, 1):
                 sr = slot(s, k)
                 pygame.draw.rect(scr, PANEL, sr, border_radius=10)
