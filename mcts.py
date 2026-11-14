@@ -15,7 +15,7 @@ def rollout(s, cap=60):
         s = apply(s, random.choice(actions(s)))
     return 0 if evaluate(s) > 0 else 1
 
-def mcts(state, iters=200, c=1.4):
+def mcts_info(state, iters=200, c=1.4):
     root = Node(state)
     for _ in range(iters):
         node = root
@@ -32,7 +32,11 @@ def mcts(state, iters=200, c=1.4):
             if node.parent and w == node.parent.state[2]:
                 node.w += 1
             node = node.parent
-    return max(root.children, key=lambda ch: ch.n).action
+        top = max(root.children, key=lambda ch: ch.n)
+    return top.action, {ch.action: (ch.n, ch.w / ch.n) for ch in root.children}
+
+def mcts(state, iters=200, c=1.4):
+    return mcts_info(state, iters, c)[0]
 
 if __name__ == "__main__":
     start = ((((100,20,5,"Fire"),(100,20,5,"Water")),

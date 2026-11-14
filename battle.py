@@ -67,3 +67,9 @@ if __name__ == "__main__":
         if winner(s) is not None: break
         s = apply(s, best(s))
     print(turn, winner(s), s)
+
+def analyze(s, depth=6):
+    sign = 1 if s[2] == 0 else -1
+    n0, p0 = STATS
+    sc = {x: sign * ab(apply(s, x), depth - 1, -1e9, 1e9, True) for x in actions(s)}
+    return max(sc, key=sc.get), sc, STATS[0] - n0, STATS[1] - p0

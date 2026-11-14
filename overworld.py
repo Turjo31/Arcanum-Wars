@@ -19,6 +19,26 @@ def scatter(g, ch, p, rn, only="."):
     for y in range(len(g)):
         for x in range(len(g[0])):
             if g[y][x] in only and rn.random() < p: g[y][x] = ch
+NPCS = [
+    dict(name="Trainer Mira", pos=(21, 13), body=(94, 194, 183), hair=(58, 42, 26), lines=[
+        "Welcome, traveler! In the arena, two AI agents battle for you.",
+        "Alpha-Beta looks 6 moves ahead and skips branches that cannot change its decision.",
+        "MCTS plays hundreds of random games and picks the move that wins most often.",
+        "Try both in the arena and watch the thinking panel."]),
+    dict(name="Elder Odo", pos=(14, 11), body=(150, 120, 200), hair=(220, 220, 230), lines=[
+        "Fire beats Earth, Earth beats Lightning, Lightning beats Water, and Water beats Fire.",
+        "A strong matchup deals 1.5 times damage. A weak one only 0.75 times.",
+        "Switching costs a turn, so only switch when the matchup is bad."]),
+    dict(name="Recruiter Finn", pos=(24, 13), body=(242, 184, 75), hair=(122, 59, 46), lines=[
+        "Tide Guard has 120 HP and 8 defense. Hard to hurt, but slow to win.",
+        "Flame Archer hits hard with 28 attack, but has only 80 HP.",
+        "Earth Golem has 130 HP and 10 defense. A real tank.",
+        "Pick fighters whose elements cover each other's weaknesses."]),
+    dict(name="Villager Lena", pos=(28, 11), body=(244, 166, 200), hair=(58, 42, 26), lines=[
+        "The forest rival chases you with A*, a shortest-path algorithm.",
+        "It is slower than you, so use the bridges and outrun it.",
+        "Beat the arena, then come back and try another team."]),
+]
 
 def village():
     rn = random.Random(11); g = mk(40, 24, ".")
@@ -34,7 +54,7 @@ def village():
     for x in (17, 18, 21, 22): g[9][x] = "M"
     g[12][19] = "O"; fill(g, 22, 18, 4, 4, "~"); g[10][36] = "N"
     scatter(g, "F", 0.07, rn)
-    return dict(name="Village", theme="village", g=g, houses=houses, exits=[((39, 11, 1, 3), "forest", (1, 14))], spawn=(3, 12), npc=None)
+    return dict(name="Village", theme="village", g=g, houses=houses, exits=[((39, 11, 1, 3), "forest", (1, 14))], spawn=(3, 12), npc=None, npcs=NPCS)
 
 def forest():
     rn = random.Random(21); g = mk(50, 30, ".")
@@ -146,6 +166,23 @@ def fade(screen):
     cover = pygame.Surface((VW, VH))
     for a in range(0, 255, 40):
         cover.set_alpha(a); screen.blit(cover, (0, 0)); pygame.display.flip(); pygame.time.delay(15)
+def wrap(font, text, width):
+    lines, cur = [], ""
+    for w in text.split():
+        t = (cur + " " + w).strip()
+        if font.size(t)[0] <= width: cur = t
+        else: lines.append(cur); cur = w
+    return lines + [cur]
+
+def dialogue(screen, f1, f2, npc, i):
+    r = pygame.Rect(30, VH - 150, 900, 142)
+    pygame.draw.rect(screen, (20, 18, 31), r, border_radius=16)
+    pygame.draw.rect(screen, (242, 184, 75), r, 3, border_radius=16)
+    screen.blit(f1.render(npc["name"], True, (242, 184, 75)), (r.x + 22, r.y + 14))
+    for k, line in enumerate(wrap(f2, npc["lines"][i], 850)[:3]):
+        screen.blit(f2.render(line, True, (244, 239, 230)), (r.x + 22, r.y + 52 + k * 26))
+    tip = f"Enter: next ({i + 1}/{len(npc['lines'])})" if i + 1 < len(npc["lines"]) else "Enter: close"
+    screen.blit(f2.render(tip, True, (169, 165, 184)), (r.right - 22 - f2.size(tip)[0], r.bottom - 30))
 
 def adventure():
     pygame.init()
@@ -155,18 +192,30 @@ def adventure():
     for m in maps.values():
         m["surf"] = render(m)
         m["blocked"] = {(x, y) for y, row in enumerate(m["g"]) for x, c in enumerate(row) if c in BLOCK}
+        m["blocked"] |= {n["pos"] for n in m.get("npcs", [])}
     key = "village"; m = maps[key]
     player, npc, t_move, t_npc, steps, chasing = list(m["spawn"]), m["npc"], 0, 0, 0, False
+    talk = None
     clock = pygame.time.Clock()
     while True:
         for e in pygame.event.get():
             if e.type == pygame.QUIT: pygame.quit(); sys.exit()
-            if e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE: return
+            if e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_ESCAPE:
+                    if talk: talk = None
+                    else: return
+                elif e.key in (pygame.K_RETURN, pygame.K_SPACE):
+                    if talk:
+                        talk[1] += 1
+                        if talk[1] >= len(talk[0]["lines"]): talk = None
+                    else:
+                        near = next((n for n in m.get("npcs", []) if abs(n["pos"][0] - player[0]) + abs(n["pos"][1] - player[1]) <= 1), None)
+                        if near: talk = [near, 0]
         now = pygame.time.get_ticks()
         k = pygame.key.get_pressed()
         dx, dy = k[pygame.K_RIGHT] - k[pygame.K_LEFT], k[pygame.K_DOWN] - k[pygame.K_UP]
         if dx: dy = 0
-        if (dx or dy) and now - t_move > 120:
+        if not talk and (dx or dy) and now - t_move > 120:
             n = (player[0] + dx, player[1] + dy)
             if 0 <= n[0] < len(m["g"][0]) and 0 <= n[1] < len(m["g"]) and n not in m["blocked"]:
                 player = list(n); steps += 1
@@ -190,6 +239,8 @@ def adventure():
         mw, mh = len(m["g"][0]) * T, len(m["g"]) * T
         cx = max(0, min(player[0] * T + 20 - VW // 2, mw - VW)); cy = max(0, min(player[1] * T + 20 - VH // 2, mh - VH))
         screen.blit(m["surf"], (-cx, -cy))
+        for n in m.get("npcs", []):
+            person(screen, n["pos"][0] * T - cx, n["pos"][1] * T - cy - 4, n["body"], n["hair"], 0)
         if npc:
             person(screen, npc[0] * T - cx, npc[1] * T - cy - 4, (230, 70, 50), (20, 18, 31), (now // 160) % 2 * 2)
             if chasing:
@@ -201,6 +252,12 @@ def adventure():
         hint = {"village": "Head east to leave the village", "forest": "A rival hunts you with A*. Cross the bridges", "arena": "Step on the gold emblem to start a battle"}[key]
         pygame.draw.rect(screen, (20, 18, 31), (12, VH - 40, 520, 30), border_radius=8)
         screen.blit(f2.render(f"Arrows: move  ·  ESC: menu  ·  {hint}", True, (244, 239, 230)), (22, VH - 33))
+        near = next((n for n in m.get("npcs", []) if abs(n["pos"][0] - player[0]) + abs(n["pos"][1] - player[1]) <= 1), None)
+        if near and not talk:
+            px, py = near["pos"][0] * T - cx + 20, near["pos"][1] * T - cy - 16
+            pygame.draw.rect(screen, (20, 18, 31), (px - 34, py - 12, 68, 24), border_radius=8)
+            screen.blit(f2.render("Enter", True, (242, 184, 75)), (px - 20, py - 8))
+        if talk: dialogue(screen, f1, f2, talk[0], talk[1])
         pygame.display.flip()
         clock.tick(60)
 
